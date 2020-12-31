@@ -6,6 +6,7 @@ import ItemId
 from datetime import date
 import json
 
+
 class Day():
 
     def __init__(self, year, month, day):
