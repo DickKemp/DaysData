@@ -8,40 +8,57 @@ import json
 
 
 class Day():
-
+    """[summary]
+    """
     def __init__(self, year, month, day):
-        # self.day_date = date(year, month, day)
-        self.day_date = f'{year}-{month:02d}-{day:02d}'
-        """
-        self.day_year = year
-        self.day_month = month
-        self.day_day = day 
-        """
-        self.day_items = []
-    #def addI
+        """[summary]
+
+        Args:
+            year ([type]): [description]
+            month ([type]): [description]
+            day ([type]): [description]
+        """        
+        self.day_date_str = f'{year}-{month:02d}-{day:02d}'
+        self.year = year
+        self.month = month
+        self.day = day 
+        self.items = []
+
+    def get_date_str(self):
+        return self.day_date_str
 
 class DayItem():
+    """[summary]
+    """    
     def __init__(self):
-        self.item_subitems = []
-    
+        self.text_items = []
+        self.time = None
+
     def setTime(self, t):
-        self.item_time = t
+        self.time = t
     def setType(self, t):
-        self.item_type = t
+        self.type = t
+
+    def addText(self, t):
+        self.text_items.append(t)
+
+    def set_item_num(self, n):
+        self.item_offset = n
+        return n
+
     def setKey(self, t):
-        self.item_key = t
+        self.key = t
     def setVal(self, t):
-        self.item_key_val = t
+        self.key_val = t
     def setKeyValParam(self, t):
-        self.item_key_val_list = t
-    def setTime(self, t):
-        self.item_time = t
+        self.key_val_list = t
+
     def setHour(self, t):
-        self.item_hour = t
+        self.hour = t
     def setMin(self, t):
-        self.item_min = t  
+        self.min = t  
     def setAmPm(self, t):
-        self.item_am_pm = t 
+        self.am_pm = t 
 
 def myStrip(s):
     if s != None:
@@ -51,10 +68,15 @@ def myStrip(s):
 
 def parseKeyValue(s):
     k = re.match("^-(\\w+):(.*)", s)
+    k0 = re.match("^-(\\w+):$", s)
+
     key = None
     val = None
     splitVals = None
     valQlist = []
+    if k0:
+        key = k.group(1)
+        return k0, key, None, None
     if k:
         key = k.group(1)
         val = k.group(2)
@@ -74,122 +96,190 @@ def parseKeyValue(s):
     return k, key, val, valQlist
 
 def parseTextItem(s):
-    t = re.match("^\(([^)]*)\)", s)
+    is_text = re.match("^\(([^)]*)\)", s)
     tm = None
     txt = None
     hour = None
     minute = None
     ap = None
-    splitTxt = None
+    text_items = None
     
-    if t:
-        txt = t.group(1)
+    if is_text:
+        txt = is_text.group(1)
         timeTxt = re.match("^(\d{1,2}[:;]\d{1,2}[aApP][mM]) - (.*)", txt)
         if timeTxt:
             txt = timeTxt.group(2)
             tm, hour, minute, ap = parseTime(timeTxt.group(1))
-        splitTxt = re.compile(";").split(txt)
-        #for ts in splitTxt: print "<" + ts + ">";             
-    return t, txt, splitTxt, hour, minute, ap
+        if ";" in txt:
+            text_items = re.compile(";").split(txt)
+        else:
+            text_items = [txt]
+
+    return is_text, text_items, hour, minute, ap
 
 def parseTime(s):
-    t = re.match("^(\\d{1,2})[:;](\\d{1,2})([aApP][mM])", s)
-    if t:
-        hour = int(t.group(1))
-        minute = int(t.group(2))
-        a = re.match("[aA].*", t.group(3))
+    is_time = re.match("^(\\d{1,2})[:;](\\d{1,2})([aApP][mM])", s)
+    if is_time:
+        hour = int(is_time.group(1))
+        minute = int(is_time.group(2))
+        a = re.match("[aA].*", is_time.group(3))
         if a:
             ap = "AM"
         else:
             ap = "PM"
-        return t, hour, minute, ap
+        return is_time, hour, minute, ap
     return None, None, None, None
     
 def parseDate(s):
-    m = re.match("^(\\d+)/(\\d+)/(\\d+)", s)
-    if m:
-        month = int(m.group(1))
-        day = int(m.group(2))
-        year = int(m.group(3))
+    is_date = re.match("^(\\d+)/(\\d+)/(\\d+)", s)
+    if is_date:
+        month = int(is_date.group(1))
+        day = int(is_date.group(2))
+        year = int(is_date.group(3))
         if year < 99:
             if year < 90:
                 year = year + 2000
             else:
                 year = year + 1900
-        return m, month, day, year
+        return is_date, month, day, year
     return None, None, None, None
 
 def splitStringIntoWords(s):
     r = re.compile("[\\W;&();,]+")
     splt = r.split(s)
     return splt
-              
 
-def parsefile(inputFile):
-    print("parsing file " + inputFile)
+def parse_jrnl_data(inf):
+    """[summary]
 
-    current_item = 0
-    current_subitem = 0
-    current_hour = 0
-    current_min = 0
-    current_ampm = 0
+    Args:
+        inf ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """    
     current_day = None
     all_days = []
-
-    f = open(inputFile, 'r')
-    tracefile = open("/Users/richk/parse_trace.txt", "w")
-
-    for line in f:
-        isDate, month, day, year = parseDate(line)
-        if isDate:
-            pass
-            print("DATE:" + str(month) + " " + str(day) + " " + str(year), file=tracefile)
-
+    day_item_count = 0
+    for line in inf:
+        is_date, month, day, year = parseDate(line)
+        if is_date:
             current_day = Day(year, month, day)
+            day_item_count = 0
             all_days.append(current_day)
-
         else:
-            isKeyVal, key, val, splitVals = parseKeyValue(line)
-            if isKeyVal:
-                if val != "":
-                    next_item = DayItem()
-                    next_item.setKey(myStrip(key))
-                    next_item.setVal(myStrip(val))
-                    print("KEY: " + myStrip(key) + " and val: " + myStrip(val), file=tracefile)
-                    if len(splitVals) > 0:
-                        next_item.setKeyValParam(splitVals)
-                        for (x,y) in splitVals:
-                            print("KEY Item x: " + str(myStrip(x)) + ", y:" + str(myStrip(y)), file=tracefile)
-                    current_day.day_items.append(next_item)
+            line_item = DayItem()
+            day_item_count = line_item.set_item_num(day_item_count) + 1
+            is_key_val, key, val, splitVals = parseKeyValue(line)
+            if is_key_val and val != "":
+                line_item.setType("KEY")
+                line_item.setKey(myStrip(key))
+                line_item.setVal(myStrip(val))
 
+                if splitVals and len(splitVals) > 0:
+                    line_item.setKeyValParam(splitVals)
+                    for (x,y) in splitVals:
+                        pass
+                current_day.items.append(line_item)
             else:
-                isTextItem, txt, splitTxt, hour, minute, ap = parseTextItem(line)
-                next_item = DayItem()
-                if hour:
-                    print("TIME: " + str(hour) + ":" + str(minute) + ap, file=tracefile)
-                    next_item.setHour(hour)
-                    next_item.setMin(minute)
-                    next_item.setAmPm(ap)
-                if isTextItem:
-                    if txt != "":
-                        print("TEXT: " + myStrip(txt))
-                        next_item.item_subitems.append(myStrip(txt))
-                    if len(splitTxt) > 1:
-                        for spl in splitTxt:
-                            print("TEXT Item:" + myStrip(spl), file=tracefile)
-                    current_day.day_items.append(next_item)
+                is_text_item, text_items, hour, minute, ap = parseTextItem(line)
+                if is_text_item:
+                    line_item.setType("TXT")
+                    for txt in text_items:
+                        line_item.addText(myStrip(txt))
+                    if hour:
+                        line_item.setHour(hour)
+                        line_item.setMin(minute)
+                        line_item.setAmPm(ap)
+                        line_item.setTime(f"{hour}:{minute}{ap}")
+                    current_day.items.append(line_item)
                 else:
-                    pass
+                    """[summary]
+                    """
                     if line != "" and line != "\n":
-                        print("NO MATCH: <" + line + ">" , file=tracefile)
+                        line_item.setType("UNK")
+                        line_item.addText(line)
+                        current_day.items.append(line_item)
     return all_days
+
+def expand_day_to_items(day):
+    indx = 0
+    current_date_str = day.get_date_str()
+    for item in day.items:
+        day_item = dict()
+        day_item["ID"] = f'{current_date_str}_{str(indx)}'
+        day_item["Date"] = current_date_str
+        day_item["Seq"] = indx
+        day_item["Text"] = ""
+        day_item["Time"] = ""
+        day_item["Key"] = ""
+        day_item["KeyValue"] = ""
+        day_item["Breakfast"] = ""
+        day_item["Lunch"] = ""
+        day_item["Dinner"] = ""
+        day_item["Snack"] = ""
+        if item.type == "TXT":
+            day_item["Text"] = ". ".join(item.text_items)            
+            day_item['Time'] = item.time if item.time else ""
+        elif item.type == "KEY":
+            day_item["Key"] = item.key if item.key else ""
+            if day_item["Key"] == "B":
+                day_item["Breakfast"] = day_item["Breakfast"] + " " + item.key_val if item.key_val else ""
+            elif day_item["Key"] == "L":
+                day_item["Lunch"] = day_item["Lunch"] + " " + item.key_val if item.key_val else ""
+            elif day_item["Key"] == "D":
+                day_item["Dinner"] = day_item["Dinner"] + " " + item.key_val if item.key_val else ""
+            elif day_item["Key"] == "S":
+                day_item["Snack"] = day_item["Snack"] + " " + item.key_val if item.key_val else ""
+            else:
+                day_item["KeyValue"] = item.key_val if item.key_val else ""
+        else:
+            continue
+        yield day_item
+        indx = indx + 1
+
+def journal_to_json(infile, outfile):
+    jfile = infile
+    with open(jfile, "r") as inf:
+        day_list = parse_jrnl_data(inf)
+
+    with open(outfile, "w") as fd:
+        print('[', file=fd)
+        print_delimeter = False
+        for day in day_list:
+            for dayitem in expand_day_to_items(day):
+                if print_delimeter:
+                    print(',', file=fd)
+                else:
+                    print_delimeter = True
+                print(json.dumps(dayitem, indent=4, default=lambda x: x.__dict__), file=fd)
+        print(']', file=fd)
 
 
 if __name__ == '__main__':
-    print("starting main")
-    jfile = "/Users/richk/GoogleDrive/me/sample_journal.txt"
-    result = parsefile(jfile)
-    for d in result:
-        print(json.dumps(d, indent=4, default=lambda x: x.__dict__))
-    print("done")
 
+    infile = "/Users/richk/GoogleDrive/me/ALL.txt"
+    outfile = "/Users/richk/GoogleDrive/me/ALL2.json"
+    journal_to_json(infile, outfile)
+
+    """
+    jfile = "/Users/richk/GoogleDrive/me/sample_journal.txt"
+    with open(jfile, "r") as inf:
+        day_list = parse_jrnl_data(inf)
+
+    with open("/Users/richk/GoogleDrive/me/sample_journal_days.json", "w") as fd:
+        for day in day_list:
+            print(json.dumps(day, indent=4, default=lambda x: x.__dict__), file=fd)
+
+    with open("/Users/richk/GoogleDrive/me/sample_journal_items.json", "w") as fd:
+        print('[', file=fd)
+        print_delimeter = False
+        for day in day_list:
+            for dayitem in expand_day_to_items(day):
+                if print_delimeter:
+                    print(',', file=fd)
+                else:
+                    print_delimeter = True
+                print(json.dumps(dayitem, indent=4, default=lambda x: x.__dict__), file=fd)
+        print(']', file=fd)
+    """
