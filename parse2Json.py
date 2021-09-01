@@ -1,14 +1,5 @@
-
 from daydata import DayData
-
-import re
-import collections
-import os
-import string
-import ItemId
-from datetime import date
 import json
-
 
 def gen_tags(day: DayData):
     tags = []
@@ -22,7 +13,6 @@ def gen_tags(day: DayData):
         tags.append('#oddDay')
     return tags
     
-
 
 def expand_day_to_items(day: DayData):
     indx = 0
@@ -71,25 +61,25 @@ def expand_day_to_items(day: DayData):
         yield day_item
         indx = indx + 1
 
+def journal_to_json(infile, outfile):
+    jfile = infile
+    with open(jfile, "r") as inf:
+        day_list = DayData.parse_jrnl_data(inf)
 
+    with open(outfile, "w") as fd:
+        print('[', file=fd)
+        print_delimeter = False
+        for day in day_list:
+            for dayitem in expand_day_to_items(day):
+                if print_delimeter:
+                    print(',', file=fd)
+                else:
+                    print_delimeter = True
+                print(json.dumps(dayitem, indent=4, default=lambda x: x.__dict__), file=fd)
+        print(']', file=fd)
+
+            
 if __name__ == '__main__':
-
-    def journal_to_json(infile, outfile):
-        jfile = infile
-        with open(jfile, "r") as inf:
-            day_list = DayData.parse_jrnl_data(inf)
-
-        with open(outfile, "w") as fd:
-            print('[', file=fd)
-            print_delimeter = False
-            for day in day_list:
-                for dayitem in expand_day_to_items(day):
-                    if print_delimeter:
-                        print(',', file=fd)
-                    else:
-                        print_delimeter = True
-                    print(json.dumps(dayitem, indent=4, default=lambda x: x.__dict__), file=fd)
-            print(']', file=fd)
 
     infile = "/Users/richk/GoogleDrive/me/ALL.txt"
     outfile = "/Users/richk/GoogleDrive/me/ALL2Y.json"
